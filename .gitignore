@@ -1,0 +1,7 @@
+*.pmtiles
+*.pmtiles.sha256
+*.osm.pbf
+graph-cache/
+data/
+planetiler.jar
+manifest.json

@@ -1,0 +1,7 @@
+# config/planetiler-mg.yml — documentation of the flags used in scripts/build.sh.
+# Not read by Planetiler directly; the invocation in scripts/build.sh is the
+# single source of truth.
+area: madagascar
+minzoom: 0
+maxzoom: 14        # Z14: street-level nav detail vs. file size. Validate before locking in — see TG-2.
+download: true      # Fetches the Geofabrik extract automatically; cached under sources/
