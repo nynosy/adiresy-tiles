@@ -33,8 +33,6 @@ This repository contains no application code — only pipeline configuration and
 
   Covers region (ADM1), district (ADM2), commune (ADM3), and fokontany (ADM4) boundary lines. Matches the boundary data source used by adiresy.mg, though note: HDX's indexed file reports 22 regions/119 districts/1,579 communes/17,465 fokontany, while the live site states 24/114/1,707/17,465 — same fokontany count, different region/district/commune counts. Unresolved; the site may be using a newer BNGRC release not yet indexed on HDX.
 
-> All three credit lines above (OpenMapTiles/OSM, Google/Microsoft/VIDA, and BNGRC/OCHA) must ship in `adiresy-mobile`'s UI (e.g. a map attribution overlay or credits screen), not just this README. The Google/Microsoft/VIDA wording is still a reasonable draft, not yet legally reviewed — see TG-10 in the implementation spec.
-
 ## Repository structure
 
 ```

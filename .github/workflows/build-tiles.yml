@@ -23,8 +23,12 @@ jobs:
 
       - name: Install pmtiles CLI, GDAL, and tippecanoe
         run: |
+          # go-pmtiles release assets embed the version in the filename
+          # (e.g. go-pmtiles_1.31.0_Linux_x86_64.tar.gz), so latest/download/
+          # with a static name 404s -- resolve the tag first.
+          PMTILES_VERSION=$(curl -fsSL https://api.github.com/repos/protomaps/go-pmtiles/releases/latest | jq -r .tag_name)
           curl -fL -o /tmp/go-pmtiles.tar.gz \
-            https://github.com/protomaps/go-pmtiles/releases/latest/download/go-pmtiles_Linux_x86_64.tar.gz
+            "https://github.com/protomaps/go-pmtiles/releases/download/${PMTILES_VERSION}/go-pmtiles_${PMTILES_VERSION#v}_Linux_x86_64.tar.gz"
           tar -xzf /tmp/go-pmtiles.tar.gz -C /usr/local/bin pmtiles
           sudo apt-get update
           sudo apt-get install -y gdal-bin tippecanoe
