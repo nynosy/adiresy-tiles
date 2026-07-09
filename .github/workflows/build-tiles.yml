@@ -42,13 +42,14 @@ jobs:
       - name: Generate province boundary polygons
         run: bash scripts/generate-province-polygons.sh
 
-      - name: Build province tiles + buildings overlay (all quality tiers)
+      - name: Build province tiles + buildings + POI overlays (all quality tiers)
         run: |
           for province in antananarivo fianarantsoa toamasina mahajanga toliara antsiranana; do
             bbox=$(jq -r ".${province}" province-bounds.json)
             for zoom in 12 13 14; do
               bash scripts/build.sh madagascar "province-${province}.poly" "province-${province}-z${zoom}.pmtiles" "$zoom"
               bash scripts/extract-buildings.sh "buildings-province-${province}-z${zoom}.pmtiles" "$bbox" "$zoom"
+              bash scripts/build-poi-overlay.sh madagascar "province-${province}.poly" "poi-province-${province}-z${zoom}.pmtiles" "$zoom"
             done
           done
 
@@ -56,6 +57,12 @@ jobs:
         run: |
           for zoom in 12 13 14; do
             bash scripts/extract-buildings.sh "buildings-madagascar-z${zoom}.pmtiles" "" "$zoom"
+          done
+
+      - name: Build national POI overlay (all quality tiers)
+        run: |
+          for zoom in 12 13 14; do
+            bash scripts/build-poi-overlay.sh madagascar "" "poi-madagascar-z${zoom}.pmtiles" "$zoom"
           done
 
       - name: Build admin boundaries overlay
@@ -100,5 +107,6 @@ jobs:
             madagascar-z*.pmtiles madagascar-z*.pmtiles.sha256 \
             province-*.pmtiles province-*.pmtiles.sha256 \
             buildings-*.pmtiles buildings-*.pmtiles.sha256 \
+            poi-*.pmtiles poi-*.pmtiles.sha256 \
             boundaries.pmtiles boundaries.pmtiles.sha256 \
             manifest.json

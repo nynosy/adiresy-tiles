@@ -20,12 +20,13 @@ OUTPUT="${3:-${AREA}.pmtiles}"
 MAXZOOM="${4:-14}"
 
 MINZOOM=0
+PLANETILER_VERSION="v0.10.2"   # pinned -- this is the version all local/CI builds have been validated against
 PLANETILER_JAR="planetiler.jar"
 
 if [ ! -f "$PLANETILER_JAR" ]; then
-  echo "Downloading Planetiler..."
+  echo "Downloading Planetiler $PLANETILER_VERSION..."
   curl -fL -o "$PLANETILER_JAR" \
-    https://github.com/onthegomap/planetiler/releases/latest/download/planetiler.jar
+    "https://github.com/onthegomap/planetiler/releases/download/${PLANETILER_VERSION}/planetiler.jar"
 fi
 
 CMD=(java -Xmx4g -jar "$PLANETILER_JAR"

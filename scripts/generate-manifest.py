@@ -97,6 +97,20 @@ def main() -> None:
         buildings["dataset_date"] = BUILDINGS_DATASET_DATE
         manifest["buildings"] = buildings
 
+    # POI overlay: schools, hospitals, shops, etc. at min_zoom=12 (config/poi-overlay.yml),
+    # bypassing OpenMapTiles' built-in poi layer, which gates most categories to z14.
+    # Derived from the same Geofabrik extract as the base map, so no separate
+    # dataset_date -- osm_extract_date already covers it.
+    poi = {}
+    poi_national = region_tiers(lambda t: f"poi-madagascar-{t}.pmtiles", base_url)
+    if poi_national:
+        poi["national"] = poi_national
+    poi_provinces = provinces_tiers(lambda name, t: f"poi-province-{name}-{t}.pmtiles", base_url)
+    if poi_provinces:
+        poi["provinces"] = poi_provinces
+    if poi:
+        manifest["poi"] = poi
+
     # Admin boundaries overlay: region/district/commune/fokontany lines from
     # BNGRC/OCHA (see scripts/build-boundaries.sh). Single small national file,
     # not split by tier or province -- there's no size reason to.
