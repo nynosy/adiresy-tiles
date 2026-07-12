@@ -82,7 +82,7 @@ def main() -> None:
 
     provinces = provinces_tiers(lambda name, t: f"province-{name}-{t}.pmtiles", base_url)
     if provinces:
-        manifest["provinces"] = provinces
+        manifest["files"]["provinces"] = provinces
 
     # Buildings overlay: Google Open Buildings v3 + Microsoft + OSM, merged and
     # deduplicated by VIDA (https://source.coop/vida/google-microsoft-osm-open-buildings).

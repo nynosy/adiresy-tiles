@@ -129,10 +129,20 @@ layers:
             - station
             - halt
         attributes:
+          # Planetiler's match_key/match_value are named from the OSM tag's
+          # own perspective, not OpenMapTiles' schema convention: match_key
+          # is the broad tag KEY that satisfied include_when (amenity, shop,
+          # healthcare, office, tourism, leisure, railway -- 7 values), and
+          # match_value is that key's specific VALUE (hospital, restaurant,
+          # supermarket, ...). Consumers (e.g. adiresy-mobile's StyleLoader,
+          # which matches specific categories like "hospital"/"restaurant")
+          # expect OpenMapTiles-style class/subclass instead, where class is
+          # the specific category -- so class here takes match_value and
+          # subclass takes match_key, the reverse of what the names suggest.
           - key: class
-            type: match_key
-          - key: subclass
             type: match_value
+          - key: subclass
+            type: match_key
           - key: name
             tag_value: name
           - key: name_fr
