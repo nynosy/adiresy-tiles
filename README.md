@@ -26,6 +26,12 @@ Consumed by the `adiresy-mobile` Android app via `TileDownloadWorker`, which dow
 
 This repository contains no application code — only pipeline configuration and scripts. See `docs/TileGen-Implementation-Spec.md` for the concrete implementation spec these files are built from.
 
+## License
+
+This repo's **code** (scripts, configs, CI workflow) is licensed under **GPL-3.0** — see [`LICENSE`](LICENSE), matching the companion [`adiresy-mobile`](https://github.com/nynosy/adiresy-mobile) app.
+
+The **released data** (`.pmtiles`/`manifest.json` GitHub Release assets) is *not* covered by that license — it's bound by its upstream sources' own licenses instead (ODbL, CC-BY, CC BY-IGO 3.0, depending on the file). See [`LICENSE-DATA.md`](LICENSE-DATA.md) for exactly what applies to which file and what it permits/requires; the section below covers the same sources with more build-process context.
+
 ## Data sources & licences
 
 - **Map data:** OpenStreetMap contributors, via [Geofabrik](https://download.geofabrik.de/)'s Madagascar extract. Licensed under the [Open Database License (ODbL)](https://opendatacommons.org/licenses/odbl/). The OSM `building` layer is deliberately excluded from these base tiles (see below).
