@@ -450,7 +450,16 @@ Unlike buildings, there's no pre-tiled version of this dataset available anywher
 
 The zip (`mdg_adm_bngrc_ocha_20181031_shp.zip`, 66 MB) contains one shapefile per admin level (adm0–adm4, polygons) plus a combined `mdg_admbndl_all_BNGRC_OCHA_20181031.shp` — **boundary lines**, not polygons, with each shared border stored once (not duplicated per adjacent polygon) and an `admLevel` attribute (1=region, 2=district, 3=commune, 4=fokontany, 99=coastline/external) plus P-codes for both sides of each segment. This is the ideal single source for a borders-only overlay — used directly rather than deriving lines from the polygon layers ourselves.
 
-**Discrepancy found, accepted as-is:** HDX's indexed shapefile reports 22 regions / 119 districts / 1,579 communes / 17,465 fokontany (confirmed via `ogrinfo`, matches the HDX API's dataset description exactly). The live site states 24 / 114 / 1,707 / 17,465. Fokontany matches exactly; region/district/commune don't. Either adiresy.mg uses a newer/different BNGRC release not yet indexed on HDX (HDX's file is dated 2018-10-31, "last reviewed" March 2024 per its metadata notes), or a different resource entirely. Not pursued further — HDX's file is what's used.
+**Discrepancy found:** HDX's indexed shapefile reports 22 regions / 119 districts / 1,579 communes / 17,465 fokontany (confirmed via `ogrinfo`, matches the HDX API's dataset description exactly). The live site states 24 / 114 / 1,707 / 17,465. Fokontany matches exactly; region/district/commune don't.
+
+**Root cause (resolves region/district — [GH issue #2](https://github.com/nynosy/adiresy-tiles/issues/2)):** not a newer BNGRC release — the HDX file (2018-10-31) is genuinely the current geometry, just frozen at Madagascar's 2004 admin split for classification purposes. Two legal changes since then were never reflected in its `admLevel`/pcode scheme, and the file has one internal inconsistency:
+- [Vatovavy Fitovinany region (MG23) split into Vatovavy and Fitovinany](https://www.assemblee-nationale.mg/wp-content/uploads/2021/07/LOI-n%C2%B02021-012-CTD.pdf) by LOI n° 2021-012 (2021-06-24) — its 6 districts split 3/3 (Ifanadiana/Nosy-Varika/Mananjary → Vatovavy; Manakara Atsimo/Ikongo/Vohipeno → Fitovinany).
+- Ambatosoa region carved from northern Analanjirofo (MG32) by a 2023 law, inaugurated 2025 — taking 2 of its 6 districts (Maroantsetra, Mananara-Avaratra).
+- Antananarivo-Renivohitra's 6 arrondissements (pcodes `MG11101001A`..`MG11101006A`) are coded as 6 separate ADM2 "districts" — confirmed by the shapefile's own `NOTES` field: *"Previous district name is Antananarivo Renivohitra (MDG11101)"*. A district nested inside a district breaks the Region > District > Commune > Fokontany hierarchy, and doesn't match [Wikipedia's 114-district list](https://en.wikipedia.org/wiki/Districts_of_Madagascar) (which lists Antananarivo-Renivohitra as a single, single-commune district, same treatment as Antsirabe I/Fianarantsoa I/etc).
+
+All verified directly against the shapefile: `ogrinfo` on the ADM1/ADM2 polygon layers confirms 22 regions / 119 districts, with exactly those 6 arrondissement pcodes under `ADM1_PCODE=MG11` and exactly those district groupings under `MG23`/`MG32`. No geometry is wrong anywhere — only classification. `scripts/build-boundaries.sh` now reclassifies affected line segments' `admLevel` accordingly (109 records total, all currently admLevel 2: 85 arrondissement-boundary lines → 3, 66 Vatovavy/Fitovinany + Ambatosoa/Analanjirofo boundary lines → 1 — see the updated script below), bringing the tileset's effective counts to 24 regions / 114 districts, matching adiresy.mg and Wikipedia exactly.
+
+**Commune-level discrepancy (1,579 vs 1,707) not pursued** — issue #2 itself flags this as "tricky": Madagascar's official commune classification (urban/rural) comes from a [scanned decree PDF](https://cnlegis.gov.mg/uploads/D2015-592-Classement_COMMUNE_URBAINE_et_RURALE.pdf), not a structured/queryable source, so reconciling it would mean transcribing ~1,700 commune names by hand rather than a pcode-based fix like the region/district one above. Tracked as issue #2's remaining item.
 
 **Bonus finding:** every level in this dataset carries an `OLD_PROVIN` field mapping it to one of the 6 legacy "faritany" provinces — and the values match our T5 province table exactly (verified via `ogrinfo`: e.g. Analamanga/Vakinankaratra/Itasy/Bongolava all map to `OLD_PROVIN=Antananarivo`, matching the plan's table). This means TG-8 (our province download-split bounding boxes are hand-eyeballed approximations) could be fixed by dissolving this dataset's ADM1 polygons by `OLD_PROVIN` and clipping Planetiler with the exact geometry (`--polygon=`) instead of a bbox — not implemented here, tracked as TG-16, since it would require re-running every previously-built base-map and buildings-overlay file.
 
@@ -486,8 +495,78 @@ ogr2ogr -f GeoJSON -t_srs EPSG:4326 \
   "$WORKDIR/boundaries.geojson" \
   "$WORKDIR/extracted/${SHP_BASENAME}.shp"
 
+echo "Correcting region/district admLevel drift (resolves GH issue #2)..."
+python3 - "$WORKDIR/boundaries.geojson" "$WORKDIR/boundaries_corrected.geojson" <<'PYEOF'
+import json
+import sys
+
+# HDX's 2018-10-31 shapefile is frozen at Madagascar's 2004 admin split (22
+# regions / 119 "districts") and doesn't reflect two legal changes since, so
+# its admLevel classification drifts from the real Region > District >
+# Commune > Fokontany hierarchy adiresy.mg renders. No geometry is wrong --
+# only which level these existing line segments should be classified at.
+# See https://github.com/nynosy/adiresy-tiles/issues/2.
+#
+# 1. Antananarivo-Renivohitra's 6 arrondissements are coded as 6 separate
+#    ADM2 "districts" (pcodes MG11101001A..MG11101006A) -- the shapefile's
+#    own NOTES field admits this: "Previous district name is Antananarivo
+#    Renivohitra (MDG11101)". A district inside a district breaks the
+#    hierarchy, so the boundaries between them are downgraded from admLevel
+#    2 (district) to 3 (commune), matching how adiresy.mg treats them.
+ANTANANARIVO_RENIVOHITRA_ARRONDISSEMENTS = {
+    "MG11101001A", "MG11101002A", "MG11101003A",
+    "MG11101004A", "MG11101005A", "MG11101006A",
+}
+
+# 2. "Vatovavy Fitovinany" region (MG23) was split into Vatovavy and
+#    Fitovinany regions by LOI n° 2021-012 (2021-06-24). Its 6 districts
+#    split 3/3, so the boundary between the two groups is now a region
+#    boundary (admLevel 2 -> 1), not an internal district boundary.
+VATOVAVY_DISTRICTS = {"MG23206", "MG23207", "MG23209"}      # Ifanadiana, Nosy-Varika, Mananjary
+FITOVINANY_DISTRICTS = {"MG23210", "MG23211", "MG23212"}    # Manakara Atsimo, Ikongo, Vohipeno
+
+# 3. Ambatosoa region was carved out of northern Analanjirofo (MG32) by a
+#    2023 law, inaugurated 2025 -- taking 2 of its 6 districts. Same fix:
+#    admLevel 2 -> 1 on the boundary between the two groups.
+AMBATOSOA_DISTRICTS = {"MG32303", "MG32304"}                        # Maroantsetra, Mananara-Avaratra
+ANALANJIROFO_DISTRICTS = {"MG32302", "MG32305", "MG32315", "MG32318"}  # Sainte Marie, Fenerive Est, Vavatenina, Soanierana Ivongo
+#
+# Together this brings the tileset's effective counts from 22 regions / 119
+# districts to 24 / 114, matching adiresy.mg and https://en.wikipedia.org/
+# wiki/Districts_of_Madagascar. Fokontany/commune-level (ADM3/ADM4) drift is
+# tracked separately, unresolved (issue #2 item 3).
+
+def corrected_adm_level(props):
+    level = props.get("admLevel")
+    if level != 2:
+        # Only district-level (admLevel 2) lines are affected by the three
+        # rules above. Skip everything else -- in particular, fokontany-level
+        # (admLevel 4) lines *inside* a single arrondissement also have both
+        # ADM2_L and ADM2_R equal to that arrondissement's pcode (a subset of
+        # ANTANANARIVO_RENIVOHITRA_ARRONDISSEMENTS too), but must stay at 4.
+        return level
+    sides = {props.get("ADM2_L"), props.get("ADM2_R")}
+    if sides <= ANTANANARIVO_RENIVOHITRA_ARRONDISSEMENTS:
+        return 3
+    if (sides & VATOVAVY_DISTRICTS) and (sides & FITOVINANY_DISTRICTS):
+        return 1
+    if (sides & AMBATOSOA_DISTRICTS) and (sides & ANALANJIROFO_DISTRICTS):
+        return 1
+    return level
+
+src, dst = sys.argv[1], sys.argv[2]
+with open(src) as f:
+    data = json.load(f)
+
+for feature in data["features"]:
+    feature["properties"]["admLevel"] = corrected_adm_level(feature["properties"])
+
+with open(dst, "w") as f:
+    json.dump(data, f)
+PYEOF
+
 echo "Assigning per-level minzoom (coarser levels visible from further out)..."
-python3 - "$WORKDIR/boundaries.geojson" "$WORKDIR/boundaries_zoomed.geojson" <<'PYEOF'
+python3 - "$WORKDIR/boundaries_corrected.geojson" "$WORKDIR/boundaries_zoomed.geojson" <<'PYEOF'
 import json
 import sys
 
@@ -520,9 +599,11 @@ echo "Built $OUTPUT ($(du -h "$OUTPUT" | cut -f1))"
 
 **Non-obvious bug hit and fixed during testing:** tippecanoe's per-feature zoom-override key (`"tippecanoe": {"minzoom": N, ...}`) only takes effect as a **top-level sibling of `"properties"`** on each GeoJSON Feature object — not nested inside `"properties"` itself. Nesting it inside `properties` silently does nothing (tippecanoe just serializes it through as a regular string-valued attribute); there's no warning or error, so this is easy to miss. Confirmed with a minimal 2-feature reproduction before fixing the real conversion. Without per-level minzoom at all, tippecanoe fails outright: cramming all 48,713 line segments (including 29,299 fokontany-level segments) into low-zoom tiles exceeds its 500KB internal tile-size limit and it refuses to produce those tiles ("could not make tile ... small enough").
 
+**Non-obvious bug hit and fixed while building the admLevel correction (this repo, issue #2):** the first version of `corrected_adm_level` checked only "are both sides of this line inside the arrondissement pcode set" without also requiring `admLevel == 2`. That silently also matched fokontany-level (admLevel 4) lines that happen to sit *entirely inside* a single arrondissement — there, `ADM2_L` and `ADM2_R` are equal (both that arrondissement's pcode), and a set of one repeated pcode is trivially a subset of the 6-pcode arrondissement set too. First run reclassified 436 fokontany lines down to commune level by mistake alongside the intended 85 district lines. Caught by diffing before/after `admLevel` histograms against the hand-verified SQL counts (`ogrinfo -dialect sqlite`) before trusting the output — fixed by gating the whole function on `level != 2`.
+
 **Zoom scheme used:** region (level 1) and the coastline/external layer (level 99) from z0; district (level 2) from z4; commune (level 3) from z7; fokontany (level 4) from z9. Tileset built z0–z12 (matches the Overview/Standard tier ceiling; MapLibre will overzoom these simple line tiles fine beyond z12 for the Detailed tier, same as any raster/vector source displayed past its native maxzoom).
 
-**Built and verified locally:** 13.3 MB (`boundaries.pmtiles`), valid PMTiles v3, `pmtiles show` reports correct bounds/zoom range, spot-checked tiles at z1/z9/z12 confirm each admin level only appears at or above its assigned minzoom.
+**Built and verified locally:** 13.3 MB (`boundaries.pmtiles`, unchanged from before the admLevel fix — this only reclassifies existing lines, doesn't add/remove geometry), valid PMTiles v3, `pmtiles show` reports correct bounds/zoom range. Verified the correction itself by diffing admLevel histograms before/after against hand-written `ogrinfo -dialect sqlite` queries on the raw shapefile: exactly 85 lines move district→commune (Antananarivo-Renivohitra's internal arrondissement boundaries) and 66 move district→region (48 Vatovavy/Fitovinany + 18 Ambatosoa/Analanjirofo), admLevel 4 (29,299 fokontany lines) untouched. Full pipeline re-run end-to-end against the real BNGRC/OCHA zip, exits 0.
 
 **`scripts/generate-province-polygons.sh` (resolves TG-16):** province splits for the base map (§4) and buildings overlay (§5) originally used hand-drawn bounding boxes (approximate — see TG-8). This dataset's ADM1 polygons carry an `OLD_PROVIN` attribute mapping exactly onto our 6 legacy-province split (verified via `ogrinfo`, see TG-16 below), so this script downloads the same BNGRC/OCHA zip, dissolves the ADM1 polygons by `OLD_PROVIN` (`ogr2ogr … -dialect sqlite -sql "SELECT OLD_PROVIN, ST_Union(geometry) … GROUP BY OLD_PROVIN"`), and writes one `province-<name>.poly` per province (Osmosis polygon filter format — see the §4 testing note on why not GeoJSON) plus a `province-bounds.json` of each polygon's bbox (still needed for `extract-buildings.sh`, since `pmtiles extract` has no polygon-clip option — only `--bbox=`). `scripts/build.sh` now accepts either a bbox string or a `.poly` path in its `bounds` argument, passing `--polygon=` to Planetiler for the latter (see §4).
 
@@ -1042,5 +1123,6 @@ The glob prefixes (`madagascar-z*`, `province-*`, `buildings-*`, `poi-*`, plus t
 | Buildings overlay (adiresy.mg parity) | §5, §8/§9 `buildings` schema, §10 extraction steps |
 | POI overlay (schools/hospitals/shops visible below z14) | §6, §8/§9 `poi` schema, §10 build steps |
 | Admin boundaries overlay (adiresy.mg parity) | §7, §8/§9 `boundaries` schema, §10 build step |
+| Region/district admLevel correction (resolves GH issue #2 items 1–2) | §7 discrepancy/root-cause/fix writeup, `scripts/build-boundaries.sh` |
 
 ---
