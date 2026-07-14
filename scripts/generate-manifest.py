@@ -7,13 +7,8 @@ import os
 import sys
 from datetime import datetime, timezone
 
-PROVINCES = [
-    "antananarivo", "fianarantsoa", "toamasina",
-    "mahajanga", "toliara", "antsiranana",
-]
-
 # Quality tiers, see docs/TileGen-Implementation-Spec.md for the size/detail tradeoff.
-TIERS = ["z12", "z13", "z14"]
+TIERS = ["z12", "z13"]
 
 # Both overlays are static upstream snapshots, not refreshed on our quarterly cadence
 # the way OSM is (see TG-12/TG-14) -- hardcoded here until VIDA/HDX publish updates.
@@ -38,22 +33,13 @@ def file_entry(path: str, url: str) -> dict:
     }
 
 
-def region_tiers(filename_for_tier, base_url: str) -> dict:
+def national_tiers(filename_for_tier, base_url: str) -> dict:
     tiers = {}
     for tier in TIERS:
         path = filename_for_tier(tier)
         if os.path.exists(path):
             tiers[tier] = file_entry(path, f"{base_url}/{path}")
     return tiers
-
-
-def provinces_tiers(filename_for, base_url: str) -> dict:
-    provinces = {}
-    for name in PROVINCES:
-        tiers = region_tiers(lambda t, name=name: filename_for(name, t), base_url)
-        if tiers:
-            provinces[name] = tiers
-    return provinces
 
 
 def main() -> None:
@@ -75,45 +61,31 @@ def main() -> None:
         "files": {},
     }
 
-    national_tiers = region_tiers(lambda t: f"madagascar-{t}.pmtiles", base_url)
-    if not national_tiers:
-        sys.exit("error: no madagascar-z{12,13,14}.pmtiles found")
-    manifest["files"]["national"] = national_tiers
-
-    provinces = provinces_tiers(lambda name, t: f"province-{name}-{t}.pmtiles", base_url)
-    if provinces:
-        manifest["files"]["provinces"] = provinces
+    files_national = national_tiers(lambda t: f"madagascar-{t}.pmtiles", base_url)
+    if not files_national:
+        sys.exit("error: no madagascar-z{12,13}.pmtiles found")
+    manifest["files"]["national"] = files_national
 
     # Buildings overlay: Google Open Buildings v3 + Microsoft + OSM, merged and
     # deduplicated by VIDA (https://source.coop/vida/google-microsoft-osm-open-buildings).
-    buildings = {}
-    buildings_national = region_tiers(lambda t: f"buildings-madagascar-{t}.pmtiles", base_url)
+    buildings_national = national_tiers(lambda t: f"buildings-madagascar-{t}.pmtiles", base_url)
     if buildings_national:
-        buildings["national"] = buildings_national
-    buildings_provinces = provinces_tiers(lambda name, t: f"buildings-province-{name}-{t}.pmtiles", base_url)
-    if buildings_provinces:
-        buildings["provinces"] = buildings_provinces
-    if buildings:
-        buildings["dataset_date"] = BUILDINGS_DATASET_DATE
-        manifest["buildings"] = buildings
+        manifest["buildings"] = {
+            "national": buildings_national,
+            "dataset_date": BUILDINGS_DATASET_DATE,
+        }
 
     # POI overlay: schools, hospitals, shops, etc. at min_zoom=12 (config/poi-overlay.yml),
     # bypassing OpenMapTiles' built-in poi layer, which gates most categories to z14.
     # Derived from the same Geofabrik extract as the base map, so no separate
     # dataset_date -- osm_extract_date already covers it.
-    poi = {}
-    poi_national = region_tiers(lambda t: f"poi-madagascar-{t}.pmtiles", base_url)
+    poi_national = national_tiers(lambda t: f"poi-madagascar-{t}.pmtiles", base_url)
     if poi_national:
-        poi["national"] = poi_national
-    poi_provinces = provinces_tiers(lambda name, t: f"poi-province-{name}-{t}.pmtiles", base_url)
-    if poi_provinces:
-        poi["provinces"] = poi_provinces
-    if poi:
-        manifest["poi"] = poi
+        manifest["poi"] = {"national": poi_national}
 
     # Admin boundaries overlay: region/district/commune/fokontany lines from
     # BNGRC/OCHA (see scripts/build-boundaries.sh). Single small national file,
-    # not split by tier or province -- there's no size reason to.
+    # not split by tier -- there's no size reason to.
     boundaries_path = "boundaries.pmtiles"
     if os.path.exists(boundaries_path):
         manifest["boundaries"] = file_entry(boundaries_path, f"{base_url}/{boundaries_path}")

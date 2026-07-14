@@ -4,10 +4,12 @@ set -euo pipefail
 # Usage: build-poi-overlay.sh <area> [bounds] [output] [maxzoom]
 #   area:    Geofabrik area name (e.g. madagascar)
 #   bounds:  optional sub-region clip, either "lon_min,lat_min,lon_max,lat_max" (bbox)
-#            or a path to a .poly file (see scripts/generate-province-polygons.sh)
+#            or a path to a .poly file. Not used by the current national-only
+#            pipeline (no region/province split), kept generic since build-tiles.yml
+#            always calls this with bounds="".
 #   output:  output .pmtiles filename (default: <area>-poi.pmtiles)
-#   maxzoom: optional max zoom level (default: 14). See the quality tier table in
-#            docs/TileGen-Implementation-Spec.md.
+#   maxzoom: optional max zoom level (default: 13). See the quality tier table in
+#            docs/TileGen-Implementation-Spec.md -- no Z14/Detailed tier.
 #
 # Extracts POI points (schools, hospitals, shops, offices, etc.) via a custom
 # Planetiler schema (config/poi-overlay.yml) at a fixed min_zoom=12, bypassing
@@ -21,7 +23,7 @@ set -euo pipefail
 AREA="${1:?area is required}"
 BOUNDS="${2:-}"
 OUTPUT="${3:-${AREA}-poi.pmtiles}"
-MAXZOOM="${4:-14}"
+MAXZOOM="${4:-13}"
 
 SCHEMA="$(dirname "$0")/../config/poi-overlay.yml"
 PLANETILER_VERSION="v0.10.2"   # pinned -- matches build.sh, see there for why

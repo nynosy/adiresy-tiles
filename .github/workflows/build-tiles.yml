@@ -33,35 +33,21 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y gdal-bin tippecanoe
 
-      - name: Build national tiles (all quality tiers)
+      - name: Build national tiles (Z12/Z13 only)
         run: |
-          for zoom in 12 13 14; do
+          for zoom in 12 13; do
             bash scripts/build.sh madagascar "" "madagascar-z${zoom}.pmtiles" "$zoom"
           done
 
-      - name: Generate province boundary polygons
-        run: bash scripts/generate-province-polygons.sh
-
-      - name: Build province tiles + buildings + POI overlays (all quality tiers)
+      - name: Extract national buildings overlay (Z12/Z13 only)
         run: |
-          for province in antananarivo fianarantsoa toamasina mahajanga toliara antsiranana; do
-            bbox=$(jq -r ".${province}" province-bounds.json)
-            for zoom in 12 13 14; do
-              bash scripts/build.sh madagascar "province-${province}.poly" "province-${province}-z${zoom}.pmtiles" "$zoom"
-              bash scripts/extract-buildings.sh "buildings-province-${province}-z${zoom}.pmtiles" "$bbox" "$zoom"
-              bash scripts/build-poi-overlay.sh madagascar "province-${province}.poly" "poi-province-${province}-z${zoom}.pmtiles" "$zoom"
-            done
-          done
-
-      - name: Extract national buildings overlay (all quality tiers)
-        run: |
-          for zoom in 12 13 14; do
+          for zoom in 12 13; do
             bash scripts/extract-buildings.sh "buildings-madagascar-z${zoom}.pmtiles" "" "$zoom"
           done
 
-      - name: Build national POI overlay (all quality tiers)
+      - name: Build national POI overlay (Z12/Z13 only)
         run: |
-          for zoom in 12 13 14; do
+          for zoom in 12 13; do
             bash scripts/build-poi-overlay.sh madagascar "" "poi-madagascar-z${zoom}.pmtiles" "$zoom"
           done
 
@@ -105,7 +91,6 @@ jobs:
             --title "Map data $TAG" \
             --notes "Quarterly OSM + Google Open Buildings + BNGRC/OCHA admin boundaries Madagascar tile update. Source: Geofabrik, VIDA, HDX. Licence: ODbL, CC BY-IGO." \
             madagascar-z*.pmtiles madagascar-z*.pmtiles.sha256 \
-            province-*.pmtiles province-*.pmtiles.sha256 \
             buildings-*.pmtiles buildings-*.pmtiles.sha256 \
             poi-*.pmtiles poi-*.pmtiles.sha256 \
             boundaries.pmtiles boundaries.pmtiles.sha256 \

@@ -3,5 +3,5 @@
 # single source of truth.
 area: madagascar
 minzoom: 0
-maxzoom: 14        # Z14: street-level nav detail vs. file size. Validate before locking in — see TG-2.
+maxzoom: 13        # Standard tier -- no Z14/Detailed tier, see docs/TileGen-Implementation-Spec.md's "Current State" note.
 download: true      # Fetches the Geofabrik extract automatically; cached under sources/

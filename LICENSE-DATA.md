@@ -6,7 +6,7 @@ This file exists so there's a clear, standalone answer to "what can I do with th
 
 ## Base map, buildings overlay, POI overlay — ODbL
 
-Files: `madagascar-*.pmtiles`, `province-*.pmtiles` (base map); `buildings-*.pmtiles`; `poi-*.pmtiles`.
+Files: `madagascar-*.pmtiles` (base map); `buildings-*.pmtiles`; `poi-*.pmtiles`.
 
 Built from OpenStreetMap data via [Geofabrik](https://download.geofabrik.de/)'s Madagascar extract. The buildings overlay additionally merges in [Google Open Buildings v3](https://sites.research.google/gr/open-buildings/) and Microsoft [GlobalMLBuildingFootprints](https://github.com/microsoft/GlobalMLBuildingFootprints) via [VIDA](https://source.coop/vida/google-microsoft-osm-open-buildings) — also ODbL.
 

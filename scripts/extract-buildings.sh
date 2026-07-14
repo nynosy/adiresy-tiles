@@ -4,7 +4,7 @@ set -euo pipefail
 # Usage: extract-buildings.sh <output> [bounds] [maxzoom]
 #   output:  output .pmtiles filename
 #   bounds:  optional "lon_min,lat_min,lon_max,lat_max" to clip to a sub-region (omit for national)
-#   maxzoom: optional max zoom level (default: 14)
+#   maxzoom: optional max zoom level (default: 13) -- no Z14/Detailed tier
 #
 # Extracts a region/zoom subset directly from VIDA's pre-tiled, pre-deduplicated
 # building footprints (Google Open Buildings v3 + Microsoft GlobalMLBuildingFootprints +
@@ -20,7 +20,7 @@ SOURCE_URL="https://data.source.coop/vida/google-microsoft-osm-open-buildings/pm
 
 OUTPUT="${1:?output is required}"
 BOUNDS="${2:-}"
-MAXZOOM="${3:-14}"
+MAXZOOM="${3:-13}"
 
 CMD=(pmtiles extract "$SOURCE_URL" "$OUTPUT" --maxzoom="$MAXZOOM")
 
