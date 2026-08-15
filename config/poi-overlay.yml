@@ -68,6 +68,8 @@ layers:
             - drinking_water
             - shelter
             - charging_station
+            - money_transfer
+            - mobile_money_agent
           shop:
             - supermarket
             - convenience
@@ -99,7 +101,6 @@ layers:
             - optician
             - travel_agency
             - kiosk
-            - money_transfer
           healthcare:
             - hospital
             - clinic
@@ -139,8 +140,6 @@ layers:
           railway:
             - station
             - halt
-            - tram_stop
-            - subway_entrance
           highway:
             - bus_stop
           public_transport:
