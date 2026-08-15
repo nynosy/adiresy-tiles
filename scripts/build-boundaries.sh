@@ -9,11 +9,21 @@ set -euo pipefail
 # COD-AB dataset and tiles them with tippecanoe. Requires `ogr2ogr` (GDAL) and
 # `tippecanoe` on PATH.
 # Source: https://data.humdata.org/dataset/cod-ab-mdg (CC BY-IGO)
+#
+# HDX republished this dataset 2026-08-13, replacing the 2018-10-31 vintage
+# (previously a single combined mdg_admbndl_all_BNGRC_OCHA_20181031.shp) with
+# a per-level layout (mdg_admin0..4.shp polygons + mdg_adminlines.shp for
+# boundary lines) and renumbered pcodes (field names admLevel/ADM2_L/ADM2_R
+# -> adm_level/left_pcod/right_pcod). Confirmed directly with ogrinfo: the new
+# data already reflects Madagascar's current 24-region split natively (e.g.
+# Vatovavy/Fitovinany and Ambatosoa are already separate ADM1 regions), so the
+# region-split corrections below are gone. Antananarivo-Renivohitra's 6
+# arrondissements are still miscoded as separate ADM2 "districts", just under
+# new pcodes -- that correction remains, updated.
 
 OUTPUT="${1:-boundaries.pmtiles}"
 
-SHP_URL="https://data.humdata.org/dataset/26fa506b-0727-4d9d-a590-d2abee21ee22/resource/ed94d52e-349e-41be-80cb-62dc0435bd34/download/mdg_adm_bngrc_ocha_20181031_shp.zip"
-SHP_BASENAME="mdg_admbndl_all_BNGRC_OCHA_20181031"
+SHP_URL="https://data.humdata.org/dataset/26fa506b-0727-4d9d-a590-d2abee21ee22/resource/d5ede998-21e3-437b-9157-dc16593b44eb/download/mdg_admin_boundaries.shp.zip"
 
 WORKDIR=$(mktemp -d)
 trap 'rm -rf "$WORKDIR"' EXIT
@@ -25,65 +35,54 @@ unzip -q "$WORKDIR/mdg_adm_shp.zip" -d "$WORKDIR/extracted"
 echo "Converting to GeoJSON..."
 ogr2ogr -f GeoJSON -t_srs EPSG:4326 \
   "$WORKDIR/boundaries.geojson" \
-  "$WORKDIR/extracted/${SHP_BASENAME}.shp"
+  "$WORKDIR/extracted/mdg_adminlines.shp"
 
-echo "Correcting region/district admLevel drift (resolves GH issue #2)..."
+echo "Correcting district admLevel drift (resolves GH issue #2 item 1)..."
 python3 - "$WORKDIR/boundaries.geojson" "$WORKDIR/boundaries_corrected.geojson" <<'PYEOF'
 import json
 import sys
 
-# HDX's 2018-10-31 shapefile is frozen at Madagascar's 2004 admin split (22
-# regions / 119 "districts") and doesn't reflect two legal changes since, so
-# its admLevel classification drifts from the real Region > District >
-# Commune > Fokontany hierarchy adiresy.mg renders. No geometry is wrong --
-# only which level these existing line segments should be classified at.
-# See https://github.com/nynosy/adiresy-tiles/issues/2.
+# As of the 2026-08-13 HDX republish, the source data already reflects
+# Madagascar's current 24-region split natively (Vatovavy, Fitovinany, and
+# Ambatosoa are already separate ADM1 regions) -- the region-level drift
+# this correction used to fix (issue #2 items 2-3) is resolved upstream.
 #
-# 1. Antananarivo-Renivohitra's 6 arrondissements are coded as 6 separate
-#    ADM2 "districts" (pcodes MG11101001A..MG11101006A) -- the shapefile's
-#    own NOTES field admits this: "Previous district name is Antananarivo
-#    Renivohitra (MDG11101)". A district inside a district breaks the
-#    hierarchy, so the boundaries between them are downgraded from admLevel
-#    2 (district) to 3 (commune), matching how adiresy.mg treats them.
+# One issue remains: Antananarivo-Renivohitra's 6 arrondissements are still
+# coded as 6 separate ADM2 "districts" (pcodes MG11118..MG11123, renumbered
+# from the pre-2026-08 pcodes but the same underlying data quirk). A district
+# inside a district breaks the Region > District > Commune > Fokontany
+# hierarchy adiresy.mg renders, so the boundaries between them are downgraded
+# from admLevel 2 (district) to 3 (commune), matching how adiresy.mg treats
+# them. No geometry is wrong -- only which level these existing line segments
+# should be classified at. See https://github.com/nynosy/adiresy-tiles/issues/2.
 ANTANANARIVO_RENIVOHITRA_ARRONDISSEMENTS = {
-    "MG11101001A", "MG11101002A", "MG11101003A",
-    "MG11101004A", "MG11101005A", "MG11101006A",
+    "MG11118", "MG11119", "MG11120",
+    "MG11121", "MG11122", "MG11123",
 }
-
-# 2. "Vatovavy Fitovinany" region (MG23) was split into Vatovavy and
-#    Fitovinany regions by LOI n° 2021-012 (2021-06-24). Its 6 districts
-#    split 3/3, so the boundary between the two groups is now a region
-#    boundary (admLevel 2 -> 1), not an internal district boundary.
-VATOVAVY_DISTRICTS = {"MG23206", "MG23207", "MG23209"}      # Ifanadiana, Nosy-Varika, Mananjary
-FITOVINANY_DISTRICTS = {"MG23210", "MG23211", "MG23212"}    # Manakara Atsimo, Ikongo, Vohipeno
-
-# 3. Ambatosoa region was carved out of northern Analanjirofo (MG32) by a
-#    2023 law, inaugurated 2025 -- taking 2 of its 6 districts. Same fix:
-#    admLevel 2 -> 1 on the boundary between the two groups.
-AMBATOSOA_DISTRICTS = {"MG32303", "MG32304"}                        # Maroantsetra, Mananara-Avaratra
-ANALANJIROFO_DISTRICTS = {"MG32302", "MG32305", "MG32315", "MG32318"}  # Sainte Marie, Fenerive Est, Vavatenina, Soanierana Ivongo
 #
-# Together this brings the tileset's effective counts from 22 regions / 119
-# districts to 24 / 114, matching adiresy.mg and https://en.wikipedia.org/
-# wiki/Districts_of_Madagascar. Fokontany/commune-level (ADM3/ADM4) drift is
-# tracked separately, unresolved (issue #2 item 3).
+# This brings the tileset's effective district count down by 6, matching
+# adiresy.mg and https://en.wikipedia.org/wiki/Districts_of_Madagascar.
+# Fokontany/commune-level (ADM3/ADM4) drift is tracked separately, unresolved
+# (issue #2 item 3).
 
 def corrected_adm_level(props):
-    level = props.get("admLevel")
+    level = props.get("adm_level")
     if level != 2:
-        # Only district-level (admLevel 2) lines are affected by the three
-        # rules above. Skip everything else -- in particular, fokontany-level
-        # (admLevel 4) lines *inside* a single arrondissement also have both
-        # ADM2_L and ADM2_R equal to that arrondissement's pcode (a subset of
+        # Only district-level (adm_level 2) lines are affected by the rule
+        # above. Skip everything else -- in particular, fokontany-level
+        # (adm_level 4) lines *inside* a single arrondissement also truncate
+        # to that arrondissement's pcode on both sides (a subset of
         # ANTANANARIVO_RENIVOHITRA_ARRONDISSEMENTS too), but must stay at 4.
         return level
-    sides = {props.get("ADM2_L"), props.get("ADM2_R")}
-    if sides <= ANTANANARIVO_RENIVOHITRA_ARRONDISSEMENTS:
+    # left_pcod/right_pcod always carry the finest (fokontany-level) pcode on
+    # each side of the line, regardless of the line's own adm_level -- not
+    # the district-level pcode directly. Truncating to the first 7 chars
+    # (MG + 2-digit region + 3-digit district) recovers the district pcode,
+    # confirmed against the adm2 layer's own pcode format (e.g. "MG11118").
+    left = str(props.get("left_pcod") or "")[:7]
+    right = str(props.get("right_pcod") or "")[:7]
+    if {left, right} <= ANTANANARIVO_RENIVOHITRA_ARRONDISSEMENTS:
         return 3
-    if (sides & VATOVAVY_DISTRICTS) and (sides & FITOVINANY_DISTRICTS):
-        return 1
-    if (sides & AMBATOSOA_DISTRICTS) and (sides & ANALANJIROFO_DISTRICTS):
-        return 1
     return level
 
 src, dst = sys.argv[1], sys.argv[2]
@@ -91,6 +90,8 @@ with open(src) as f:
     data = json.load(f)
 
 for feature in data["features"]:
+    # Output key stays "admLevel" (not adm_level) -- adiresy-mobile's
+    # StyleLoader matches on this property name in the tiled output.
     feature["properties"]["admLevel"] = corrected_adm_level(feature["properties"])
 
 with open(dst, "w") as f:

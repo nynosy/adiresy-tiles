@@ -13,7 +13,7 @@ TIERS = ["z12", "z13"]
 # Both overlays are static upstream snapshots, not refreshed on our quarterly cadence
 # the way OSM is (see TG-12/TG-14) -- hardcoded here until VIDA/HDX publish updates.
 BUILDINGS_DATASET_DATE = "2024-08-27"   # VIDA MDG.pmtiles Last-Modified header
-BOUNDARIES_DATASET_DATE = "2018-10-31"  # HDX COD-AB shapefile date
+BOUNDARIES_DATASET_DATE = "2026-08-13"  # HDX COD-AB shapefile date (republish, see build-boundaries.sh)
 
 
 def sha256_of(path: str) -> str:
