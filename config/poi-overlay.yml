@@ -59,6 +59,14 @@ layers:
             - ferry_terminal
             - nursing_home
             - prison
+            - taxi
+            - car_sharing
+            - bicycle_rental
+            - bicycle_parking
+            - toilets
+            - drinking_water
+            - shelter
+            - charging_station
           shop:
             - supermarket
             - convenience
@@ -90,6 +98,7 @@ layers:
             - optician
             - travel_agency
             - kiosk
+            - money_transfer
           healthcare:
             - hospital
             - clinic
@@ -104,6 +113,7 @@ layers:
             - insurance
             - lawyer
             - estate_agent
+            - telecommunication
           tourism:
             - hotel
             - motel
@@ -128,11 +138,19 @@ layers:
           railway:
             - station
             - halt
+            - tram_stop
+            - subway_entrance
+          highway:
+            - bus_stop
+          public_transport:
+            - platform
+            - stop_position
         attributes:
           # Planetiler's match_key/match_value are named from the OSM tag's
           # own perspective, not OpenMapTiles' schema convention: match_key
           # is the broad tag KEY that satisfied include_when (amenity, shop,
-          # healthcare, office, tourism, leisure, railway -- 7 values), and
+          # healthcare, office, tourism, leisure, railway, highway,
+          # public_transport -- 9 values), and
           # match_value is that key's specific VALUE (hospital, restaurant,
           # supermarket, ...). Consumers (e.g. adiresy-mobile's StyleLoader,
           # which matches specific categories like "hospital"/"restaurant")
